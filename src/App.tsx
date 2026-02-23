@@ -3,9 +3,49 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useState, useEffect } from 'react';
+import { supabase } from './services/supabaseClient';
 import ContentGenerator from './components/ContentGenerator';
+import AuthForm from './components/AuthForm';
+import { LogOut, User } from 'lucide-react';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export default function App() {
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthForm onAuthSuccess={() => { }} />;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
       <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-10">
@@ -18,14 +58,24 @@ export default function App() {
             </div>
             <h1 className="text-xl font-bold text-slate-800 tracking-tight">EduContent Generator</h1>
           </div>
-          <div className="text-sm font-medium text-slate-500">
-            Powered by Gemini AI
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <User className="w-4 h-4" />
+              <span className="hidden sm:inline">{user.email}</span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Đăng xuất</span>
+            </button>
           </div>
         </div>
       </header>
 
       <main className="py-8">
-        <ContentGenerator />
+        <ContentGenerator userId={user.id} />
       </main>
     </div>
   );
